@@ -143,12 +143,17 @@ jobs:
           git config user.email "actions@github.com"
           git config pull.rebase false
 
+      - name: Pull latest main branch
+        run: git pull origin main
+
       - name: Update image in deployment.yaml
         run: |
           IMAGE="${{ env.FULL_IMAGE_NAME }}"
           IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
           sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
+
+      - name: Commit and push updated deployment
+        run: |
           git add kubernetes/deployment.yaml
           git commit -m "CI: Update image tag in deployment.yaml"
-          git pull --rebase origin main
           git push origin main
