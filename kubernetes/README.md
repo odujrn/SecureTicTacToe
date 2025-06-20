@@ -1,4 +1,4 @@
-# Kubernetes Deployment for Tic Tac Toe
+# Kubernetes Deployment for Secure Tic Tac Toe
 
 This directory contains Kubernetes manifests for deploying the Tic Tac Toe application.
 
