@@ -136,6 +136,7 @@ jobs:
         with:
           token: ${{ secrets.TOKEN }}
           fetch-depth: 0
+          clean: true  # Ensures a clean working directory
 
       - name: Set up Git
         run: |
@@ -143,7 +144,7 @@ jobs:
           git config user.email "actions@github.com"
           git config pull.rebase false
 
-      - name: Pull latest main branch
+      - name: Pull latest changes
         run: git pull origin main
 
       - name: Update image in deployment.yaml
@@ -151,9 +152,10 @@ jobs:
           IMAGE="${{ env.FULL_IMAGE_NAME }}"
           IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
           sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
-
-      - name: Commit and push updated deployment
-        run: |
           git add kubernetes/deployment.yaml
           git commit -m "CI: Update image tag in deployment.yaml"
+
+      - name: Push changes
+        run: |
+          git pull origin main  # Pull again to ensure no conflicts
           git push origin main
