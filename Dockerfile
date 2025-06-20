@@ -10,11 +10,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Production stage
-FROM nginx:alpine
+# Production stage - Use a more recent nginx-alpine image
+FROM nginx:1.25-alpine3.22
 
-# Fix vulnerabilities: upgrade libxml2 using --no-cache to avoid caching the index
-RUN apk update && apk upgrade --no-cache libxml2
+# Upgrade all packages to ensure latest security fixes
+RUN apk update && apk upgrade --no-cache
 
 # Copy built app from build stage to Nginx web root
 COPY --from=build /app/dist /usr/share/nginx/html
