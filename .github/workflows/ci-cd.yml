@@ -122,7 +122,9 @@ jobs:
       - name: Set image tag output
         id: set_output
         run: |
-          echo "image_tag=sha-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          IMAGE_REF="${{ steps.meta.outputs.tags }}"
+          DIGEST="${IMAGE_REF#*@}"
+          echo "image_tag=${DIGEST}" >> $GITHUB_OUTPUT
 
   update-k8s:
     name: Update Kubernetes Deployment
@@ -139,17 +141,17 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Update deployment.yaml with new image tag
+      - name: Update deployment.yaml with new image digest
         env:
           IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
           IMAGE: ghcr.io/odujrn/securetictactoe
         run: |
-          sed -i "s|image: ${IMAGE}:.*|image: ${IMAGE}:${IMAGE_TAG}|g" kubernetes/deployment.yaml
-          echo "Updated image tag to: ${IMAGE}:${IMAGE_TAG}"
+          sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
+          echo "Updated image reference to: ${IMAGE}@${IMAGE_TAG}"
           grep -A 1 "image:" kubernetes/deployment.yaml
 
       - name: Commit and push updated deployment
         run: |
           git add kubernetes/deployment.yaml
-          git commit -m "Update deployment with image tag: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
+          git commit -m "Update deployment with image digest: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
           git push
