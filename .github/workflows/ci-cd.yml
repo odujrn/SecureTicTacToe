@@ -154,4 +154,5 @@ jobs:
         run: |
           git add kubernetes/deployment.yaml
           git commit -m "Update deployment with image digest: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
-          git push
+          git pull --rebase origin main
+          git push origin main
