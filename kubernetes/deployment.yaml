@@ -16,8 +16,7 @@ spec:
     spec:
       containers:
       - name: tic-tac-toe
-        image: ghcr.io/odujrn/securetictactoe:latest
-        # Image will be automatically updated by CI/CD pipeline
+        image: ghcr.io/odujrn/securetictactoe@sha256:665d9c3b97cd057a5a60df368d9326c0c6db78cd
         imagePullPolicy: Always
         ports:
         - containerPort: 80
@@ -40,5 +39,9 @@ spec:
             port: 80
           initialDelaySeconds: 5
           periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
       imagePullSecrets:
       - name: github-container-registry
+      restartPolicy: Always
