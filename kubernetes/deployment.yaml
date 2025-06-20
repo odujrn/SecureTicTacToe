@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: tic-tac-toe
-        image: ghcr.io/odujrn/securetictactoe:sha-PLACEHOLDER
+        image: ghcr.io/odujrn/securetictactoe@sha256:PLACEHOLDER
         # Image will be automatically updated by CI/CD pipeline
         imagePullPolicy: Always
         ports:
