@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: tic-tac-toe
-        image: ghcr.io/odujrn/securetictactoe:sha-2ef63af93d29331e3bc453203f1c5dc6f9156b8a
+        image: ghcr.io/odujrn/securetictactoe@sha256:2a460988cf188d24a7c2bd995b6cb7be3021a28dff85fdef4becd5929c698ce6
         imagePullPolicy: Always
         ports:
         - containerPort: 80
