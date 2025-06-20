@@ -146,18 +146,22 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          git config pull.rebase false
 
       - name: Create Branch for Deployment Update
         run: |
           BRANCH_NAME=update-k8s-$(date +%s)
           git checkout -b $BRANCH_NAME
+          git pull origin main
 
           IMAGE="${{ env.FULL_IMAGE_NAME }}"
-          IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
-          sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
-
+          IMAGE_DIGEST="${{ needs.docker.outputs.image_tag }}"
+          
+          # Update deployment.yaml with the new digest
+          sed -i "s|image: ${IMAGE}@sha256:.*|image: ${IMAGE}@sha256:${IMAGE_DIGEST}|g" kubernetes/deployment.yaml
+          
           git add kubernetes/deployment.yaml
-          git commit -m "CI: Update image tag in deployment.yaml"
+          git commit -m "CI: Update image digest in deployment.yaml"
           git push origin $BRANCH_NAME
 
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
@@ -166,7 +170,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.TOKEN }}
-          title: "CI: Update image tag in deployment.yaml"
+          title: "CI: Update image digest in deployment.yaml"
           body: "This PR updates the Kubernetes deployment manifest with the latest image digest."
           head: ${{ env.branch_name }}
           base: main
