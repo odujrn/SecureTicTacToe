@@ -143,18 +143,15 @@ jobs:
           git config user.email "actions@github.com"
           git config pull.rebase false  # Use merge strategy
 
-      - name: Update deployment.yaml with new image digest
+      - name: Commit and push updated deployment
         env:
           IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
           IMAGE: ghcr.io/odujrn/securetictactoe
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin main
           sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
-          echo "Updated image reference to: ${IMAGE}@${IMAGE_TAG}"
-          grep -A 1 "image:" kubernetes/deployment.yaml
-
-      - name: Commit and push updated deployment
-        run: |
-          git pull origin main  # Get latest changes before pushing
           git add kubernetes/deployment.yaml
           git commit -m "Update deployment with image digest: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
           git push origin main
