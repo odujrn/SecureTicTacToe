@@ -2,11 +2,11 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - 'kubernetes/deployment.yaml'
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
@@ -135,23 +135,20 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TOKEN }}
-          fetch-depth: 0  # Get full history to allow merging
+          fetch-depth: 0
 
       - name: Set up Git
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git config pull.rebase false  # Use merge strategy
+          git config pull.rebase false
 
       - name: Commit and push updated deployment
-        env:
-          IMAGE_TAG: ${{ needs.docker.outputs.image_tag }}
-          IMAGE: ghcr.io/odujrn/securetictactoe
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git pull origin main
-          sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
+          sed -i "s|image: ghcr.io/odujrn/securetictactoe.*|image: ghcr.io/odujrn/securetictactoe@${{ needs.docker.outputs.image_tag }}|g" kubernetes/deployment.yaml
+          echo "Updated image reference to: ghcr.io/odujrn/securetictactoe@${{ needs.docker.outputs.image_tag }}"
+          grep -A 1 "image:" kubernetes/deployment.yaml
           git add kubernetes/deployment.yaml
           git commit -m "Update deployment with image digest: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
           git push origin main
