@@ -143,12 +143,12 @@ jobs:
           git config user.email "actions@github.com"
           git config pull.rebase false
 
-      - name: Commit and push updated deployment
+      - name: Update image in deployment.yaml
         run: |
-          git pull origin main
-          sed -i "s|image: ghcr.io/odujrn/securetictactoe.*|image: ghcr.io/odujrn/securetictactoe@${{ needs.docker.outputs.image_tag }}|g" kubernetes/deployment.yaml
-          echo "Updated image reference to: ghcr.io/odujrn/securetictactoe@${{ needs.docker.outputs.image_tag }}"
-          grep -A 1 "image:" kubernetes/deployment.yaml
+          IMAGE="${{ env.FULL_IMAGE_NAME }}"
+          IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
+          sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
           git add kubernetes/deployment.yaml
-          git commit -m "Update deployment with image digest: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes to commit"
+          git commit -m "CI: Update image tag in deployment.yaml"
+          git pull --rebase origin main
           git push origin main
