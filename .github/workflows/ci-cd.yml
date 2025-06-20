@@ -7,6 +7,10 @@ on:
       - 'kubernetes/deployment.yaml'
   pull_request:
     branches: [main]
+  workflow_run:
+    workflows: [CI/CD Pipeline]
+    types:
+      - completed
 
 env:
   REGISTRY: ghcr.io
@@ -19,10 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
       - run: npm test || echo "No tests found, would add tests in a real project"
 
@@ -31,10 +37,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
       - run: npm run lint
 
@@ -44,12 +52,15 @@ jobs:
     needs: [test, lint]
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - run: npm ci
       - run: npm run build
+
       - uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
@@ -63,16 +74,20 @@ jobs:
       image_tag: ${{ steps.set_output.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: dist/
+
       - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.TOKEN }}
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -80,6 +95,7 @@ jobs:
           images: ${{ env.FULL_IMAGE_NAME }}
           tags: |
             type=sha,format=long
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -88,6 +104,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: true
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -97,6 +114,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
       - name: Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -104,6 +122,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
       - name: Set image tag output
         id: set_output
         run: |
@@ -112,7 +131,7 @@ jobs:
           echo "image_tag=${DIGEST}" >> $GITHUB_OUTPUT
 
   update-k8s:
-    name: Create Pull Request for K8s Deployment Update
+    name: Create PR to Update Kubernetes Deployment
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -121,71 +140,60 @@ jobs:
         with:
           token: ${{ secrets.TOKEN }}
           fetch-depth: 0
+          clean: true
 
-      - name: Configure Git
+      - name: Set up Git
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
-      - name: Update image in deployment.yaml
+      - name: Create Branch for Deployment Update
         run: |
-          BRANCH=update-deployment-${{ github.run_number }}
-          git checkout -b $BRANCH
+          BRANCH_NAME=update-k8s-$(date +%s)
+          git checkout -b $BRANCH_NAME
 
           IMAGE="${{ env.FULL_IMAGE_NAME }}"
           IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
           sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
 
           git add kubernetes/deployment.yaml
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
           git commit -m "CI: Update image tag in deployment.yaml"
-          git push origin $BRANCH
+          git push origin $BRANCH_NAME
+
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Create Pull Request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --title "CI: Update image tag in deployment.yaml" \
-            --body "Auto-generated PR to update Kubernetes deployment image tag." \
-            --base main \
-            --head update-deployment-${{ github.run_number }} \
-            --label automation
-
-  deploy-k8s:
-    name: Direct K8s Apply (optional alternative to ArgoCD)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [update-k8s]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        uses: peter-evans/create-pull-request@v5
         with:
-          version: v1.30.0
-      - name: Setup kubeconfig
-        run: |
-          echo "${{ secrets.KUBECONFIG }}" > kubeconfig
-          export KUBECONFIG=$PWD/kubeconfig
-      - name: Apply manifests
-        run: |
-          kubectl apply -f kubernetes/
-#         OR use:
-#         kubectl apply -k kubernetes/
+          token: ${{ secrets.TOKEN }}
+          title: "CI: Update image tag in deployment.yaml"
+          body: "This PR updates the Kubernetes deployment manifest with the latest image digest."
+          head: ${{ env.branch_name }}
+          base: main
+          draft: false
 
-# Optional: Trigger ArgoCD sync manually (if needed)
-#   argocd-sync:
-#     name: ArgoCD Sync
-#     runs-on: ubuntu-latest
-#     needs: [update-k8s]
-#     steps:
-#       - name: ArgoCD Sync
-#         run: |
-#           argocd login argocd.example.com \
-#             --username ${{ secrets.ARGOCD_USERNAME }} \
-#             --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
-#           argocd app sync secure-tic-tac-toe
+  argocd-sync:
+    name: ArgoCD Sync (After PR Merge)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Trigger ArgoCD Sync
+        run: |
+          echo "🔄 Sync ArgoCD..."
+          # Example: Using ArgoCD CLI
+          # curl -X POST http://your-argocd-server/api/v1/applications/your-app/sync \
+          #      -H "Authorization: Bearer ${{ secrets.ARGOCD_TOKEN }}"
+          echo "Replace above with actual sync method if needed"
+
+  apply-manifests:
+    name: (Optional) Apply K8s Manifest with kubectl
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Decode and set up KUBECONFIG
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -f kubernetes/
