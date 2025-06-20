@@ -136,7 +136,7 @@ jobs:
         with:
           token: ${{ secrets.TOKEN }}
           fetch-depth: 0
-          clean: true  # Ensures a clean working directory
+          clean: true
 
       - name: Set up Git
         run: |
@@ -153,9 +153,13 @@ jobs:
           IMAGE_TAG="${{ needs.docker.outputs.image_tag }}"
           sed -i "s|image: ${IMAGE}.*|image: ${IMAGE}@${IMAGE_TAG}|g" kubernetes/deployment.yaml
           git add kubernetes/deployment.yaml
-          git commit -m "CI: Update image tag in deployment.yaml"
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "CI: Update image tag in deployment.yaml"
+          fi
 
       - name: Push changes
         run: |
-          git pull origin main  # Pull again to ensure no conflicts
+          git pull origin main
           git push origin main
