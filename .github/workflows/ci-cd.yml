@@ -115,6 +115,12 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
+      - name: Test the built Docker image
+        run: |
+          IMAGE="${{ steps.meta.outputs.tags }}"
+          echo "Running image: $IMAGE"
+          docker run --rm "$IMAGE"
+
       - name: Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -127,7 +133,7 @@ jobs:
         id: set_output
         run: |
           IMAGE_REF="${{ steps.meta.outputs.tags }}"
-          DIGEST="${IMAGE_REF#*@}"
+          DIGEST="${IMAGE_REF##*@}"
           echo "image_tag=${DIGEST}" >> $GITHUB_OUTPUT
 
   update-k8s:
@@ -185,7 +191,6 @@ jobs:
       - name: Trigger ArgoCD Sync
         run: |
           echo "🔄 Sync ArgoCD..."
-          # Example: Using ArgoCD CLI
           # curl -X POST http://your-argocd-server/api/v1/applications/your-app/sync \
           #      -H "Authorization: Bearer ${{ secrets.ARGOCD_TOKEN }}"
           echo "Replace above with actual sync method if needed"
